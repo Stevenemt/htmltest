@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Vertex Network</title>
+    <style>
+        body {
+            margin: 0;
+            overflow-y: auto;
+            background: #ffffff;
+            font-family: Arial, sans-serif;
+            min-height: 200vh;
+        }
+        canvas {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .player-container {
+            position: relative;
+            top: 50vh;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 800px;
+            height: 850px;
+            background: url('gakplayer4(1).png') no-repeat center 30%;
+            background-size: contain;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .song-info {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .song-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .artist {
+            font-size: 14px;
+            color: #000000;
+        }
+        .progress-bar {
+            width: 40%;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin: 10px 0;
+            position: relative;
+        }
+        .progress {
+            position: absolute;
+            height: 100%;
+            background: #00ff00;
+            border-radius: 2px;
+            width: 30%;
+        }
+        .time {
+            font-size: 12px;
+            color: #000000;
+            display: flex;
+            justify-content: center;
+            width: 40%;
+            margin: 5px 0;
+            gap: 10px;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .control-btn {
+            background: none;
+            border: none;
+            color: rgb(0, 0, 0);
+            cursor: pointer;
+            font-size: 24px;
+            padding: 10px;
+            transition: all 0.3s ease;
+        }
+        .control-btn:hover {
+            color: #00ff00;
+        }
+        .play-btn {
+            font-size: 32px;
+        }
+        .volume-control {
+            display: flex;
+            align-items: center;
+            margin-top: 5px;
+        }
+        .volume-slider {
+            width: 100px;
+            height: 4px;
+            -webkit-appearance: none;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 2px;
+            outline: none;
+        }
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #00ff00;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .volume-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        .volume-slider::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            background: #00ff00;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s ease;
+        }
+        .volume-slider::-moz-range-thumb:hover {
+            transform: scale(1.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <div class="song-info">
+            <div class="song-title">Dataexit - Club Demo</div>
+            <div class="artist">Dataexit</div>
+        </div>
+        <div class="progress-bar">
+            <div class="progress"></div>
+        </div>
+        <div class="time">
+            <span class="current-time">0:00</span>
+        </div>
+        <div class="controls">
+
+            <button class="control-btn" id="playPauseBtn">▶</button>
+
+            <div class="volume-control">
+                <input type="range" id="volumeSlider" min="0" max="100" value="100" class="volume-slider">
+            </div>
+        </div>
+        <audio id="audioPlayer" style="display: none;">
+            <source src="Dataexit - Club Demo.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Audio player functionality
+        const audioPlayer = document.getElementById('audioPlayer');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const progressBar = document.querySelector('.progress');
+        const currentTimeSpan = document.querySelector('.current-time');
+        const totalTimeSpan = document.querySelector('.total-time');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const songTitle = document.querySelector('.song-title');
+        const artistName = document.querySelector('.artist');
+
+        // Format time in MM:SS
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+
+        // Try to get metadata from the audio file
+        function updateMetadata() {
+            // For WAV files, we'll use the filename as a fallback
+            const fileName = audioPlayer.querySelector('source').src.split('/').pop().replace('.wav', '');
+            
+            // Try to get metadata if available
+            if (audioPlayer.mozGetMetadata) {
+                // Firefox specific
+                const metadata = audioPlayer.mozGetMetadata();
+                if (metadata) {
+                    songTitle.textContent = metadata.title || fileName;
+                    artistName.textContent = metadata.artist || 'Unknown Artist';
+                }
+            } else {
+                // Fallback for WAV files
+                songTitle.textContent = fileName.charAt(0).toUpperCase() + fileName.slice(1);
+                artistName.textContent = 'Unknown Artist';
+            }
+        }
+
+        // Update progress bar and time
+        audioPlayer.addEventListener('timeupdate', () => {
+            const progress = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+            currentTimeSpan.textContent = formatTime(audioPlayer.currentTime);
+        });
+
+        // Update total time when metadata is loaded
+        audioPlayer.addEventListener('loadedmetadata', () => {
+            totalTimeSpan.textContent = formatTime(audioPlayer.duration);
+            updateMetadata();
+        });
+
+        // Play/Pause toggle
+        playPauseBtn.addEventListener('click', () => {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+                playPauseBtn.textContent = '⏸';
+            } else {
+                audioPlayer.pause();
+                playPauseBtn.textContent = '▶';
+            }
+        });
+
+        // Volume slider control
+        volumeSlider.addEventListener('input', (e) => {
+            const volume = e.target.value / 100;
+            audioPlayer.volume = volume;
+        });
+
+        // Progress bar click to seek
+        document.querySelector('.progress-bar').addEventListener('click', (e) => {
+            const rect = e.target.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            audioPlayer.currentTime = pos * audioPlayer.duration;
+        });
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Configuration
+        const numVertices = 50;        // Number of vertices
+        const maxDistance = 3;         // Maximum distance for edges
+        const vertexSpeed = 0.01;      // Speed of vertex movement
+        const edgeLifetime = 1000;     // How long edges last (in milliseconds)
+
+        // Create vertices
+        const vertices = [];
+        const vertexGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+        const vertexMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+
+        for (let i = 0; i < numVertices; i++) {
+            const vertex = new THREE.Mesh(vertexGeometry, vertexMaterial);
+            vertex.position.set(
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20
+            );
+            vertex.velocity = new THREE.Vector3(
+                (Math.random() - 3.5) * vertexSpeed,
+                (Math.random() - 3.5) * vertexSpeed,
+                (Math.random() - 3.5) * vertexSpeed
+            );
+            scene.add(vertex);
+            vertices.push(vertex);
+        }
+
+        // Edge management
+        const edges = [];
+        const edgeMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x00ff00,
+            transparent: true,
+            opacity: 0.2
+        });
+
+        function createEdge(vertex1, vertex2) {
+            const geometry = new THREE.BufferGeometry().setFromPoints([
+                vertex1.position,
+                vertex2.position
+            ]);
+            const edge = new THREE.Line(geometry, edgeMaterial);
+            edge.createdAt = Date.now();
+            edge.userData = { vertex1, vertex2 }; // Store references to vertices
+            scene.add(edge);
+            edges.push(edge);
+        }
+
+        // Position camera
+        camera.position.z = 10;
+
+        // Animation
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update vertex positions
+            vertices.forEach(vertex => {
+                vertex.position.add(vertex.velocity);
+
+                // Bounce off boundaries
+                if (Math.abs(vertex.position.x) > 5) vertex.velocity.x *= -1;
+                if (Math.abs(vertex.position.y) > 5) vertex.velocity.y *= -1;
+                if (Math.abs(vertex.position.z) > 5) vertex.velocity.z *= -1;
+            });
+
+            // Remove old edges
+            const currentTime = Date.now();
+            for (let i = edges.length - 1; i >= 0; i--) {
+                if (currentTime - edges[i].createdAt > edgeLifetime) {
+                    scene.remove(edges[i]);
+                    edges.splice(i, 1);
+                }
+            }
+
+            // Create new edges between nearby vertices
+            for (let i = 0; i < vertices.length; i++) {
+                for (let j = i + 1; j < vertices.length; j++) {
+                    const distance = vertices[i].position.distanceTo(vertices[j].position);
+                    if (distance < maxDistance) {
+                        createEdge(vertices[i], vertices[j]);
+                    }
+                }
+            }
+
+            // Update existing edges
+            edges.forEach(edge => {
+                const positions = edge.geometry.attributes.position.array;
+                positions[0] = edge.userData.vertex1.position.x;
+                positions[1] = edge.userData.vertex1.position.y;
+                positions[2] = edge.userData.vertex1.position.z;
+                positions[3] = edge.userData.vertex2.position.x;
+                positions[4] = edge.userData.vertex2.position.y;
+                positions[5] = edge.userData.vertex2.position.z;
+                edge.geometry.attributes.position.needsUpdate = true;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html> 
